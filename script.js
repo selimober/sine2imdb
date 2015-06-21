@@ -10,57 +10,50 @@ function extractMovieData() {
 	return {alternateName: alternateName, name: name, year: year}
 };
 
-function fetchImdbLink(movieData, byName) {
-	var url = byName ? encodeURIComponent(movieData.name)
-					 : encodeURIComponent(movieData.alternateName);
+function fetchImdbInfo(movieName, movieYear) {
+	var nameEncoded = encodeURIComponent(movieName);
 
-	return $.get("http://www.omdbapi.com/?t=" +  url + "&y="+ movieData.year);
+	return $.get("http://www.omdbapi.com/?t=" +  nameEncoded + "&y="+ movieYear);
 }
 
-var movieFound = false;
+function getImdbSearchLink(movieName, movieYear) {
+	var nameEncoded = encodeURIComponent(movieName);
+	return "http://www.imdb.com/search/title?release_date=" + 
+				movieYear +"," + movieYear + "&title=" + nameEncoded
+}
 
-function appendLink(imdbMovieInformation) {
-	if ("False" === imdbMovieInformation.Response) {
-		return;
-	}
-
-	var img = $('<img/>', {
-		id: 'imdb_logo_' + imdbMovieInformation.imdbID,
-		src: chrome.extension.getURL("imdb.png"),
-		border: 0, 
-		height: 33,
-		width: 150
-	});
-
-	var link = $('<a/>', {
-		id: 'imdb_link_' + imdbMovieInformation.imdbID,
-		href: 'http://www.imdb.com/title/' + imdbMovieInformation.imdbID,
-		target: "_blank"
-	});
-
-	link.append(img);
-
-	var div = $('<div/>', {
-		style: "margin: 5px auto"
-	});
-
-	div.append(link);
-
-	$("div.film-detail div.grid2 div.relative").append(div);
+function appendLink(url) {
+	return $("div.film-detail div.grid2 div.relative")
+		.append($('<div/>', {
+			style: "margin: 5px auto"
+		})
+		.append($('<a/>', {
+			href: url,
+			target: "_blank"
+		})
+		.append($('<img/>', {
+			src: chrome.extension.getURL("imdb.png"),
+			border: 0, 
+			height: 33,
+			width: 150
+		}))));
 }
 
 var movieData = extractMovieData();
 
-fetchImdbLink(movieData)
-	.then(appendLink)
-	.then(tryWithFirstName(movieData));
-
-function tryWithFirstName(movieData) {
-	return function() {
-		if (movieFound) {
-			return;
+fetchImdbInfo(movieData.alternateName, movieData.year)
+	.then(function(res){
+		if ("False" === res.Response) {
+			fetchImdbInfo(movieData.name, movieData.year)
+				.then(function(res){
+					if ("False" === res.Response) {
+						var url = getImdbSearchLink(movieData.alternateName, movieData.year);
+						appendLink(url);
+						return;
+					}
+					appendLink('http://www.imdb.com/title/' + res.imdbID);
+			});
+				return;
 		}
-		fetchImdbLink(movieData, true)
-			.done(appendLink);
-	}
-}
+		appendLink('http://www.imdb.com/title/' + res.imdbID);
+	});
